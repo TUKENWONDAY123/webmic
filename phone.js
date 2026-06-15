@@ -2,10 +2,14 @@ const statusDot = document.getElementById('status-dot');
 const statusText = document.getElementById('status-text');
 const startBtn = document.getElementById('start-btn');
 const codeInput = document.getElementById('code-input');
-const levelMeter = document.getElementById('level-meter');
 const infoText = document.getElementById('info-text');
 const pairingUi = document.getElementById('pairing-ui');
-const meterUi = document.getElementById('meter-ui');
+const streamingUi = document.getElementById('streaming-ui');
+const micBtn = document.getElementById('mic-btn');
+const disconnectBtn = document.getElementById('disconnect-btn');
+const micGlow = document.getElementById('mic-glow');
+const micSvgActive = document.getElementById('mic-svg-active');
+const micSvgMuted = document.getElementById('mic-svg-muted');
 
 let peer = null;
 let activeConn = null;
@@ -15,6 +19,7 @@ let wakeLock = null;
 let analyser = null;
 let audioCtx = null;
 let isStreaming = false;
+let isMuted = false;
 
 function setStatus(state, text) {
   statusDot.className = 'status-dot ' + state;
@@ -44,15 +49,26 @@ function setupLevelMeter(stream) {
   const dataArray = new Uint8Array(analyser.frequencyBinCount);
 
   function updateMeter() {
-    if (!analyser || !isStreaming) return;
+    if (!analyser || !isStreaming) {
+      micGlow.style.transform = 'scale(1)';
+      return;
+    }
     analyser.getByteFrequencyData(dataArray);
     let sum = 0;
     for (let i = 0; i < dataArray.length; i++) {
       sum += dataArray[i];
     }
     const avg = sum / dataArray.length;
-    const pct = Math.min(100, (avg / 128) * 100);
-    levelMeter.style.width = pct + '%';
+
+    // Map avg (0-128) to scale (1.0 to 1.4) and glow shadows
+    const scale = 1.0 + (avg / 128) * 0.4;
+    micGlow.style.transform = `scale(${scale})`;
+
+    const shadowBlur = 20 + (avg / 128) * 30;
+    const shadowOpacity = 0.15 + (avg / 128) * 0.35;
+    const color = isMuted ? '239, 68, 68' : '16, 185, 129';
+    micGlow.style.boxShadow = `0 0 ${shadowBlur}px rgba(${color}, ${shadowOpacity})`;
+
     requestAnimationFrame(updateMeter);
   }
   updateMeter();
@@ -66,7 +82,7 @@ async function startStreaming() {
   }
 
   try {
-    setStatus('waiting', 'Requesting microphone access...');
+    setStatus('waiting', 'Requesting mic access...');
     startBtn.disabled = true;
 
     // Get microphone with raw audio (no processing)
@@ -78,36 +94,38 @@ async function startStreaming() {
       },
     });
 
-    setStatus('waiting', 'Connecting to pairing server...');
+    setStatus('waiting', 'Connecting...');
 
-    // Connect to PeerJS cloud server
     peer = new Peer();
 
     peer.on('open', (id) => {
-      console.log('[phone] Connected to PeerJS cloud with ID:', id);
-      setStatus('waiting', 'Sending pairing request to PC...');
+      console.log('[phone] Connected with ID:', id);
+      setStatus('waiting', 'Pairing with PC...');
 
       const pcId = 'webmic-pc-' + code;
       const conn = peer.connect(pcId);
       activeConn = conn;
 
       conn.on('open', () => {
-        console.log('[phone] Data connection opened with PC');
-        setStatus('waiting', 'Waiting for PC approval...');
-        infoText.textContent = 'Please approve the connection on your PC screen.';
+        setStatus('waiting', 'Waiting for approval...');
+        infoText.textContent = 'Approve connection on your PC screen.';
       });
 
       conn.on('data', (data) => {
         if (data.type === 'approved') {
-          console.log('[phone] Connection approved by PC!');
+          console.log('[phone] Pairing approved by PC');
           
           isStreaming = true;
+          isMuted = false;
+          micBtn.classList.remove('muted');
+          micSvgActive.classList.remove('hidden');
+          micSvgMuted.classList.add('hidden');
+
           pairingUi.classList.add('hidden');
-          meterUi.classList.remove('hidden');
-          setStatus('streaming', 'Streaming to PC');
-          startBtn.textContent = 'Stop Streaming';
-          startBtn.disabled = false;
-          infoText.textContent = 'Streaming! Keep this page open.';
+          streamingUi.classList.remove('hidden');
+          
+          setStatus('streaming', 'Streaming Live');
+          infoText.textContent = 'Streaming live to PC. Tap mic to mute.';
           
           setupLevelMeter(localStream);
           requestWakeLock();
@@ -116,45 +134,46 @@ async function startStreaming() {
           activeCall = peer.call(pcId, localStream);
           
           activeCall.on('close', () => {
-            console.log('[phone] Call ended by PC');
+            console.log('[phone] Stream closed by PC');
             stopStreaming();
             setStatus('error', 'Disconnected by PC');
           });
 
         } else if (data.type === 'denied') {
-          console.log('[phone] Connection denied by PC:', data.reason);
+          console.log('[phone] Pairing denied:', data.reason);
           stopStreaming();
-          setStatus('error', 'Request Denied: ' + (data.reason || 'Declined'));
+          setStatus('error', data.reason || 'Pairing denied');
         }
       });
 
       conn.on('close', () => {
-        console.log('[phone] Data connection closed');
+        console.log('[phone] Control channel closed');
         stopStreaming();
-        setStatus('error', 'Connection closed');
+        setStatus('error', 'Connection lost');
       });
     });
 
     peer.on('error', (err) => {
       console.error('[phone] PeerJS error:', err);
       stopStreaming();
-      let errorMsg = 'Server error';
+      let errorMsg = 'Server connection failed';
       if (err.type === 'peer-not-found') {
-        errorMsg = 'PC not found. Double check the code.';
+        errorMsg = 'PC not found. Verify code.';
       }
-      setStatus('error', 'Error: ' + errorMsg);
+      setStatus('error', errorMsg);
     });
 
   } catch (e) {
     console.error('[phone] Start error:', e);
     const errorMsg = e ? (e.message || e.name || String(e)) : 'Unknown error';
-    setStatus('error', 'Error: ' + errorMsg);
+    setStatus('error', errorMsg);
     stopStreaming();
   }
 }
 
 function stopStreaming() {
   isStreaming = false;
+  isMuted = false;
 
   if (activeCall) {
     activeCall.close();
@@ -187,13 +206,35 @@ function stopStreaming() {
     analyser = null;
   }
 
-  levelMeter.style.width = '0%';
-  startBtn.textContent = 'Connect & Stream';
+  micGlow.style.transform = 'scale(1)';
+  micGlow.style.boxShadow = 'none';
+
   startBtn.disabled = false;
   pairingUi.classList.remove('hidden');
-  meterUi.classList.add('hidden');
+  streamingUi.classList.add('hidden');
   infoText.textContent = 'Enter the 6-digit code shown on your PC to connect.';
   setStatus('waiting', 'Ready to connect');
+}
+
+function toggleMute() {
+  if (!localStream) return;
+  isMuted = !isMuted;
+  
+  localStream.getAudioTracks().forEach((track) => {
+    track.enabled = !isMuted;
+  });
+
+  micBtn.classList.toggle('muted', isMuted);
+  micSvgActive.classList.toggle('hidden', isMuted);
+  micSvgMuted.classList.toggle('hidden', !isMuted);
+
+  if (isMuted) {
+    infoText.textContent = 'Microphone muted. Tap again to unmute.';
+    setStatus('waiting', 'Microphone Muted');
+  } else {
+    infoText.textContent = 'Streaming live to PC. Tap mic to mute.';
+    setStatus('streaming', 'Streaming Live');
+  }
 }
 
 startBtn.addEventListener('click', () => {
@@ -204,14 +245,17 @@ startBtn.addEventListener('click', () => {
   }
 });
 
-// Auto-format pairing code input (limit to digits, max 6)
+disconnectBtn.addEventListener('click', stopStreaming);
+micBtn.addEventListener('click', toggleMute);
+
+// Format input (limit to numbers, max length 6)
 codeInput.addEventListener('input', (e) => {
   let val = e.target.value.replace(/\D/g, '');
   if (val.length > 6) val = val.slice(0, 6);
   e.target.value = val;
 });
 
-// Handle page visibility change for wake lock re-acquisition
+// Manage visibility states for wake locks
 document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState === 'visible' && isStreaming && !wakeLock) {
     await requestWakeLock();
