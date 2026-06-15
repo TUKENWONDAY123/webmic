@@ -76,8 +76,8 @@ function setupLevelMeter(stream) {
 
 async function startStreaming() {
   const code = codeInput.value.replace(/\s+/g, '');
-  if (!code || code.length !== 6) {
-    alert('Please enter a valid 6-digit code.');
+  if (!code || code.length !== 4) {
+    alert('Please enter a valid 4-digit code.');
     return;
   }
 
@@ -212,7 +212,7 @@ function stopStreaming() {
   startBtn.disabled = false;
   pairingUi.classList.remove('hidden');
   streamingUi.classList.add('hidden');
-  infoText.textContent = 'Enter the 6-digit code shown on your PC to connect.';
+  infoText.textContent = 'Enter the 4-digit code shown on your PC to connect.';
   setStatus('waiting', 'Ready to connect');
 }
 
@@ -248,10 +248,10 @@ startBtn.addEventListener('click', () => {
 disconnectBtn.addEventListener('click', stopStreaming);
 micBtn.addEventListener('click', toggleMute);
 
-// Format input (limit to numbers, max length 6)
+// Format input (limit to numbers, max length 4)
 codeInput.addEventListener('input', (e) => {
   let val = e.target.value.replace(/\D/g, '');
-  if (val.length > 6) val = val.slice(0, 6);
+  if (val.length > 4) val = val.slice(0, 4);
   e.target.value = val;
 });
 
