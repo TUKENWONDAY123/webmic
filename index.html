@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>WebMic - Phone</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    h1 {
+      font-size: 28px;
+      margin-bottom: 4px;
+      color: #fff;
+    }
+    .subtitle {
+      font-size: 14px;
+      color: #888;
+      margin-bottom: 32px;
+    }
+
+    .status-bar {
+      width: 100%;
+      max-width: 360px;
+      padding: 14px 18px;
+      background: #16213e;
+      border-radius: 10px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 15px;
+    }
+    .status-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #555;
+      flex-shrink: 0;
+    }
+    .status-dot.connected { background: #00e676; }
+    .status-dot.streaming { background: #00e676; animation: pulse 1.5s infinite; }
+    .status-dot.error { background: #f44336; }
+    .status-dot.waiting { background: #ffc107; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+    .meter-section {
+      width: 100%;
+      max-width: 360px;
+      background: #16213e;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 24px;
+    }
+    .meter-section h3 {
+      font-size: 13px;
+      color: #aaa;
+      margin-bottom: 10px;
+    }
+    .meter-container {
+      height: 28px;
+      background: #0d1b2a;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .meter-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #00e676, #ffc107, #f44336);
+      transition: width 50ms;
+      border-radius: 8px;
+    }
+
+    .pairing-container {
+      width: 100%;
+      max-width: 360px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .code-input {
+      width: 100%;
+      padding: 16px;
+      border-radius: 12px;
+      border: 1px solid #334;
+      background: #0d1b2a;
+      color: #fff;
+      font-size: 24px;
+      text-align: center;
+      font-weight: 700;
+      letter-spacing: 4px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .code-input:focus {
+      border-color: #00e676;
+      box-shadow: 0 0 10px rgba(0, 230, 118, 0.2);
+    }
+
+    .btn-start {
+      width: 100%;
+      max-width: 360px;
+      padding: 18px;
+      border: none;
+      border-radius: 12px;
+      font-size: 18px;
+      font-weight: 700;
+      cursor: pointer;
+      background: #00e676;
+      color: #1a1a2e;
+      transition: background 0.2s, transform 0.1s;
+      margin-bottom: 16px;
+    }
+    .btn-start:active {
+      transform: scale(0.97);
+    }
+    .btn-start.streaming {
+      background: #f44336;
+      color: #fff;
+    }
+    .btn-start:disabled {
+      background: #333;
+      color: #666;
+      cursor: not-allowed;
+    }
+
+    .info {
+      width: 100%;
+      max-width: 360px;
+      font-size: 12px;
+      color: #666;
+      text-align: center;
+      line-height: 1.6;
+    }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <h1>WebMic</h1>
+  <p class="subtitle">Your phone as a PC microphone</p>
+
+  <div class="status-bar">
+    <div class="status-dot" id="status-dot"></div>
+    <span id="status-text">Ready to connect</span>
+  </div>
+
+  <div class="pairing-container" id="pairing-ui">
+    <input type="tel" id="code-input" class="code-input" placeholder="000000" maxlength="6" autocomplete="off" />
+    <button class="btn-start" id="start-btn">Connect & Stream</button>
+  </div>
+
+  <div class="meter-section hidden" id="meter-ui">
+    <h3>Mic Level</h3>
+    <div class="meter-container">
+      <div class="meter-fill" id="level-meter"></div>
+    </div>
+  </div>
+
+  <div class="info" id="info-text">
+    Enter the 6-digit code shown on your PC to connect.
+  </div>
+
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <script src="phone.js"></script>
+</body>
+</html>
